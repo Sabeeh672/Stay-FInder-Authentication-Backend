@@ -129,3 +129,73 @@ def login(data: LoginRequest):
         raise HTTPException(status_code=400, detail="Incorrect password")
 
     return {"message": "Login successful", "user": {"name": user["name"], "email": user["email"]}}
+    # ------------------------------------------------------------------
+# Admin Endpoints (Added for testing & management)
+# ------------------------------------------------------------------
+class AdminActionRequest(BaseModel):
+    email: EmailStr
+
+@router.get("/admin/users/")
+def get_all_users():
+    connection = get_auth_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT id, name, email, is_active FROM users")
+        users = cursor.fetchall()
+        cursor.execute("SELECT COUNT(*) as total FROM users")
+        count = cursor.fetchone()["total"]
+    except Exception as e:
+        print(f" Admin Get Users Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        connection.close()
+    return {"total_users": count, "users": users}
+
+
+@router.post("/admin/verify-user/")
+def admin_verify_user(data: AdminActionRequest):
+    connection = get_auth_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT * FROM users WHERE email = %s", (data.email,))
+        user = cursor.fetchone()
+
+        if not user:
+            raise HTTPException(status_code=400, detail="User not found")
+
+        cursor.execute(
+            "UPDATE users SET is_active = %s, otp_code = %s WHERE email = %s",
+            (True, None, data.email),
+        )
+        connection.commit()
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f" Admin Verify Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        connection.close()
+    return {"message": f"User {data.email} successfully verified by admin!"}
+
+
+@router.post("/admin/delete-user/")
+def admin_delete_user(data: AdminActionRequest):
+    connection = get_auth_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT * FROM users WHERE email = %s", (data.email,))
+        user = cursor.fetchone()
+
+        if not user:
+            raise HTTPException(status_code=400, detail="User not found")
+
+        cursor.execute("DELETE FROM users WHERE email = %s", (data.email,))
+        connection.commit()
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f" Admin Delete Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        connection.close()
+    return {"message": f"User {data.email} deleted successfully by admin!"}
