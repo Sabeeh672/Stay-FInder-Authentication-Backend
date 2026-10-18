@@ -140,7 +140,7 @@ def get_all_users():
     connection = get_auth_connection()
     try:
         cursor = connection.cursor()
-        cursor.execute("SELECT id, name, email, is_active FROM users")
+        cursor.execute("SELECT name, email, is_active FROM users") # id hata diya
         users = cursor.fetchall()
         cursor.execute("SELECT COUNT(*) as total FROM users")
         count = cursor.fetchone()["total"]
