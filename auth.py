@@ -199,3 +199,222 @@ def admin_delete_user(data: AdminActionRequest):
     finally:
         connection.close()
     return {"message": f"User {data.email} deleted successfully by admin!"}
+# ------------------------------------------------------------------
+# Hostel Owner Management (Admin Approval & ID Card Limit Flow)
+# ------------------------------------------------------------------
+class OwnerSignupRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    hostel_name: str
+    id_card_number: str
+
+    @field_validator("name", "hostel_name")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        if not re.match(r"^[a-zA-Z\s]+$", value.strip()):
+            raise ValueError("Field can only contain letters and spaces.")
+        return value.strip()
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return verify_email_domain(value)
+
+
+class OwnerLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return verify_email_domain(value)
+
+
+class AdminOwnerEmailRequest(BaseModel):
+    email: EmailStr
+
+
+class UpdateOwnerLimitRequest(BaseModel):
+    email: EmailStr
+    new_limit: int
+
+
+class RegisterHostelRequest(BaseModel):
+    owner_email: EmailStr
+    hostel_name: str
+    location: str
+
+
+@router.post("/owner/signup/")
+def owner_signup(owner_data: OwnerSignupRequest):
+    connection = get_auth_connection()
+    try:
+        cursor = connection.cursor()
+        # Check if email already exists
+        cursor.execute("SELECT * FROM hostel_owners WHERE email = %s", (owner_data.email,))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Owner email already registered")
+
+        # Insert owner with is_approved = False and default hostel_limit = 1
+        cursor.execute(
+            "INSERT INTO hostel_owners (name, email, password, hostel_name, id_card_number, is_approved, hostel_limit) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (owner_data.name, owner_data.email, owner_data.password, owner_data.hostel_name, owner_data.id_card_number, False, 1),
+        )
+        connection.commit()
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f" Owner Signup Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        connection.close()
+
+    return {"message": "Account created successfully! Please wait for admin to approve your account."}
+
+
+@router.post("/owner/login/")
+def owner_login(data: OwnerLoginRequest):
+    connection = get_auth_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT * FROM hostel_owners WHERE email = %s", (data.email,))
+        owner = cursor.fetchone()
+    except Exception as e:
+        print(f" Owner Login Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        connection.close()
+
+    if not owner:
+        raise HTTPException(status_code=400, detail="Owner not found")
+    
+    # Check if admin approved the owner
+    if not owner["is_approved"]:
+        raise HTTPException(status_code=403, detail="Wait for admin to approve you. Your account is pending approval.")
+    
+    if owner["password"] != data.password:
+        raise HTTPException(status_code=400, detail="Incorrect password")
+
+    return {"message": "Owner login successful", "owner": {"name": owner["name"], "email": owner["email"], "hostel_name": owner["hostel_name"]}}
+
+
+# ------------------------------------------------------------------
+# Admin Endpoints for Hostel Owners
+# ------------------------------------------------------------------
+@router.get("/admin/owners/")
+def get_all_owners():
+    connection = get_auth_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT id, name, email, hostel_name, id_card_number, is_approved, hostel_limit FROM hostel_owners")
+        owners = cursor.fetchall()
+    except Exception as e:
+        print(f" Admin Get Owners Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        connection.close()
+    return {"owners": owners}
+
+
+@router.post("/admin/approve-owner/")
+def admin_approve_owner(data: AdminOwnerEmailRequest):
+    connection = get_auth_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT * FROM hostel_owners WHERE email = %s", (data.email,))
+        owner = cursor.fetchone()
+
+        if not owner:
+            raise HTTPException(status_code=404, detail="Owner not found")
+
+        cursor.execute(
+            "UPDATE hostel_owners SET is_approved = %s WHERE email = %s",
+            (True, data.email),
+        )
+        connection.commit()
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f" Admin Approve Owner Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        connection.close()
+
+    return {"message": f"Owner {data.email} has been approved successfully!"}
+
+
+@router.post("/admin/update-owner-limit/")
+def admin_update_owner_limit(data: UpdateOwnerLimitRequest):
+    connection = get_auth_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT * FROM hostel_owners WHERE email = %s", (data.email,))
+        owner = cursor.fetchone()
+
+        if not owner:
+            raise HTTPException(status_code=404, detail="Owner not found")
+
+        cursor.execute(
+            "UPDATE hostel_owners SET hostel_limit = %s WHERE email = %s",
+            (data.new_limit, data.email),
+        )
+        connection.commit()
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f" Admin Update Limit Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        connection.close()
+
+    return {"message": f"Hostel limit for {data.email} increased to {data.new_limit} successfully!"}
+
+
+# ------------------------------------------------------------------
+# Hostel Registration with ID Card Limit Validation
+# ------------------------------------------------------------------
+@router.post("/owner/register-hostel/")
+def register_hostel(data: RegisterHostelRequest):
+    connection = get_auth_connection()
+    try:
+        cursor = connection.cursor()
+        # Get owner details including id_card_number and hostel_limit
+        cursor.execute("SELECT * FROM hostel_owners WHERE email = %s", (data.owner_email,))
+        owner = cursor.fetchone()
+
+        if not owner:
+            raise HTTPException(status_code=404, detail="Owner not found")
+        if not owner["is_approved"]:
+            raise HTTPException(status_code=403, detail="Your account is not approved by admin yet.")
+
+        id_card = owner["id_card_number"]
+        allowed_limit = owner["hostel_limit"]
+
+        # Count how many hostels are already registered by this ID card (or owner email)
+        cursor.execute("SELECT COUNT(*) as total FROM registered_hostels WHERE id_card_number = %s", (id_card,))
+        result = cursor.fetchone()
+        current_registered_count = result["total"] if result else 0
+
+        if current_registered_count >= allowed_limit:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Hostel limit reached ({current_registered_count}/{allowed_limit}). Contact admin to increase your hostel limit."
+            )
+
+        # Register the new hostel
+        cursor.execute(
+            "INSERT INTO registered_hostels (owner_email, id_card_number, hostel_name, location) VALUES (%s, %s, %s, %s)",
+            (data.owner_email, id_card, data.hostel_name, data.location),
+        )
+        connection.commit()
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f" Register Hostel Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        connection.close()
+
+    return {"message": f"Hostel '{data.hostel_name}' registered successfully!"}
