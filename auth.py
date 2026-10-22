@@ -418,3 +418,24 @@ def register_hostel(data: RegisterHostelRequest):
         connection.close()
 
     return {"message": f"Hostel '{data.hostel_name}' registered successfully!"}
+
+#......................................................
+class AdminLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+@router.post("/admin/login/")
+def admin_login(data: AdminLoginRequest):
+    is_shehwar = (data.email.lower() == "adminshehwar@stayfinder.com" and data.password == "admin123")
+    is_sabeeh = (data.email.lower() == "adminsabeeh@stayfinder.com" and data.password == "admin123")
+
+    if is_shehwar or is_sabeeh:
+        return {
+            "message": "Admin login successful", 
+            "admin": {"email": data.email}
+        }
+    
+    raise HTTPException(
+        status_code=401, 
+        detail="Invalid admin email or password."
+    )
