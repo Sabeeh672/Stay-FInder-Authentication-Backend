@@ -129,7 +129,8 @@ def login(data: LoginRequest):
         raise HTTPException(status_code=400, detail="Incorrect password")
 
     return {"message": "Login successful", "user": {"name": user["name"], "email": user["email"]}}
-    # ------------------------------------------------------------------
+
+# ------------------------------------------------------------------
 # Admin Endpoints (Added for testing & management)
 # ------------------------------------------------------------------
 class AdminActionRequest(BaseModel):
@@ -199,6 +200,8 @@ def admin_delete_user(data: AdminActionRequest):
     finally:
         connection.close()
     return {"message": f"User {data.email} deleted successfully by admin!"}
+
+
 # ------------------------------------------------------------------
 # Hostel Owner Management (Admin Approval & ID Card Limit Flow)
 # ------------------------------------------------------------------
@@ -260,7 +263,8 @@ def owner_signup(owner_data: OwnerSignupRequest):
         # Insert owner with is_approved = False and default hostel_limit = 1
         cursor.execute(
             "INSERT INTO hostel_owners (name, email, password, hostel_name, id_card_number, is_approved, hostel_limit) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (owner_data.name, owner_data.email, owner_data.password, owner_data.hostel_name, owner_data.id_card_number, False, 1),
+            (owner_data.name, owner_data.email, owner_data.password, owner_data.hostel_name, owner_data.id_card_number,
+             False, 1),
         )
         connection.commit()
     except HTTPException:
@@ -289,15 +293,16 @@ def owner_login(data: OwnerLoginRequest):
 
     if not owner:
         raise HTTPException(status_code=400, detail="Owner not found")
-    
+
     # Check if admin approved the owner
     if not owner["is_approved"]:
         raise HTTPException(status_code=403, detail="Wait for admin to approve you. Your account is pending approval.")
-    
+
     if owner["password"] != data.password:
         raise HTTPException(status_code=400, detail="Incorrect password")
 
-    return {"message": "Owner login successful", "owner": {"name": owner["name"], "email": owner["email"], "hostel_name": owner["hostel_name"]}}
+    return {"message": "Owner login successful",
+            "owner": {"name": owner["name"], "email": owner["email"], "hostel_name": owner["hostel_name"]}}
 
 
 # ------------------------------------------------------------------
@@ -308,7 +313,8 @@ def get_all_owners():
     connection = get_auth_connection()
     try:
         cursor = connection.cursor()
-        cursor.execute("SELECT id, name, email, hostel_name, id_card_number, is_approved, hostel_limit FROM hostel_owners")
+        cursor.execute(
+            "SELECT id, name, email, hostel_name, id_card_number, is_approved, hostel_limit FROM hostel_owners")
         owners = cursor.fetchall()
     except Exception as e:
         print(f" Admin Get Owners Error: {e}")
@@ -399,7 +405,7 @@ def register_hostel(data: RegisterHostelRequest):
 
         if current_registered_count >= allowed_limit:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Hostel limit reached ({current_registered_count}/{allowed_limit}). Contact admin to increase your hostel limit."
             )
 
