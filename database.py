@@ -1,45 +1,39 @@
-import os
 import pymysql
-# Local development defaults; Render uses environment variables.
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "root")
-DB_NAME = os.getenv("DB_NAME", "auth_database")
-DB_PORT = int(os.getenv("DB_PORT", "3306"))
+
+DB_HOST = "localhost"
+DB_USER = "root"
+DB_PASSWORD = "root"
+DB_NAME = "auth_database"
 
 def get_auth_connection():
     return pymysql.connect(
         host=DB_HOST,
-        port=DB_PORT,
         user=DB_USER,
         password=DB_PASSWORD,
         database=DB_NAME,
-        cursorclass=pymysql.cursors.DictCursor,
-        connect_timeout=10,
-        ssl={"ca": os.environ["DB_SSL_CA"]}
-        if os.getenv("DB_SSL_CA")
-        else None,
+        cursorclass=pymysql.cursors.DictCursor
     )
 
 def setup_auth_database():
-    # The database must already exist on Aiven.
-    # This function creates the users table if it does not exist.
+    conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD)
+    cursor = conn.cursor()
+    cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME}")
+    conn.close()
+
     conn = get_auth_connection()
     try:
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                        CREATE TABLE IF NOT EXISTS users (
-                            id INT AUTO_INCREMENT PRIMARY KEY,
-                            name VARCHAR(100),
-                            email VARCHAR(100) UNIQUE,
-                            password VARCHAR(100),
-                            otp_code VARCHAR(6) NULL,
-                            is_active BOOLEAN DEFAULT FALSE
-                        )
-                    """)
-
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100),
+                email VARCHAR(100) UNIQUE,
+                password VARCHAR(100),
+                otp_code VARCHAR(6) NULL,
+                is_active BOOLEAN DEFAULT FALSE
+            )
+        """)
         conn.commit()
-        print("[Auth DB]: Users Table Initialized!")
-        
+        print(" [Auth DB]: Users Table Initialized!")
     finally:
-        conn.close() 
+        conn.close()
