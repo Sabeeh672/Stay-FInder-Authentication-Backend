@@ -19,7 +19,7 @@ def verify_email_domain(email_str: str) -> str:
 # ------------------------------------------------------------------
 class SignupRequest(BaseModel):
     name: str
-    email: EmailStr
+    email: str
     password: str
 
     @field_validator("name")
@@ -36,7 +36,7 @@ class SignupRequest(BaseModel):
 
 
 class VerifyOtpRequest(BaseModel):
-    email: EmailStr
+    email: str
     otp: str
 
     @field_validator("email")
@@ -51,7 +51,7 @@ class VerifyOtpRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
     @field_validator("email")
@@ -100,8 +100,6 @@ def verify_otp(data: VerifyOtpRequest):
 
         if not user:
             raise HTTPException(status_code=400, detail="User not found")
-        
-        # Database OTP aur User input OTP ko safely string mein convert aur trim karein
         db_otp = str(user["otp_code"]).strip() if user["otp_code"] else ""
         input_otp = str(data.otp).strip()
 
@@ -121,7 +119,6 @@ def verify_otp(data: VerifyOtpRequest):
     finally:
         connection.close()
     return {"message": "Account activated successfully! You can now log in."}
-
 
 @router.post("/login/")
 def login(data: LoginRequest):
