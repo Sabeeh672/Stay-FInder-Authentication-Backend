@@ -3,6 +3,7 @@ import re
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, field_validator
 from database import get_auth_connection
+from email_service import send_otp_email
 
 router = APIRouter()
 
@@ -76,6 +77,7 @@ def signup(user_data: SignupRequest):
             raise HTTPException(status_code=400, detail="Email already registered")
 
         generated_otp = str(random.randint(100000, 999999))
+
         cursor.execute(
             "INSERT INTO users (name, email, password, otp_code, is_active) VALUES (%s, %s, %s, %s, %s)",
             (user_data.name, user_data.email, user_data.password, generated_otp, False),
@@ -84,14 +86,18 @@ def signup(user_data: SignupRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Signup Error: {e}")
+        print(f" Signup Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         connection.close()
 
-    print(f"[OTP DEBUG] VERIFICATION CODE FOR {user_data.email} IS: {generated_otp}")
-    return {"message": "Signup successful! Please verify your account.", "otp_debug": generated_otp}
+    # --- Yahan asli email bhejney ka function call hoga ---
+    email_sent = send_otp_email(user_data.email, generated_otp)
 
+    if not email_sent:
+        raise HTTPException(status_code=500, detail="Failed to send verification email. Please check backend logs.")
+
+    return {"message": "Signup successful! Please check your email for the OTP."}
 
 @router.post("/verify-otp/")
 def verify_otp(data: VerifyOtpRequest):
