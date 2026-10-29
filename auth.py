@@ -39,6 +39,16 @@ class VerifyOtpRequest(BaseModel):
     email: EmailStr
     otp: str
 
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return value.strip().lower()
+
+    @field_validator("otp")
+    @classmethod
+    def validate_otp(cls, value: str) -> str:
+        return value.strip()
+
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -90,7 +100,12 @@ def verify_otp(data: VerifyOtpRequest):
 
         if not user:
             raise HTTPException(status_code=400, detail="User not found")
-        if str(user["otp_code"]) != str(data.otp):
+        
+        # Database OTP aur User input OTP ko safely string mein convert aur trim karein
+        db_otp = str(user["otp_code"]).strip() if user["otp_code"] else ""
+        input_otp = str(data.otp).strip()
+
+        if db_otp != input_otp:
             raise HTTPException(status_code=400, detail="Invalid OTP code. Please check again.")
 
         cursor.execute(
