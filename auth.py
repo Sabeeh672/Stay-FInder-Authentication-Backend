@@ -91,16 +91,26 @@ def signup(user_data: SignupRequest):
     try:
         cursor = connection.cursor()
         cursor.execute("SELECT * FROM users WHERE email = %s", (user_data.email,))
-        if cursor.fetchone():
-            raise HTTPException(status_code=400, detail="Email already registered")
+        existing_user = cursor.fetchone()
 
         generated_otp = str(random.randint(100000, 999999))
 
-        cursor.execute(
-            "INSERT INTO users (name, email, password, otp_code, is_active) VALUES (%s, %s, %s, %s, %s)",
-            (user_data.name, user_data.email, user_data.password, generated_otp, False),
-        )
-        connection.commit()
+        if existing_user:
+            # Agar account pehle se hai lekin verify nahi hua (is_active = False)
+            if not existing_user.get("is_active"):
+                cursor.execute(
+                    "UPDATE users SET name = %s, password = %s, otp_code = %s WHERE email = %s",
+                    (user_data.name, user_data.password, generated_otp, user_data.email),
+                )
+                connection.commit()
+            else:
+                raise HTTPException(status_code=400, detail="Email already registered and verified. Please login.")
+        else:
+            cursor.execute(
+                "INSERT INTO users (name, email, password, otp_code, is_active) VALUES (%s, %s, %s, %s, %s)",
+                (user_data.name, user_data.email, user_data.password, generated_otp, False),
+            )
+            connection.commit()
     except HTTPException:
         raise
     except Exception as e:
@@ -109,7 +119,7 @@ def signup(user_data: SignupRequest):
     finally:
         connection.close()
 
-    # --- Yahan asli email bhejney ka function call hoga ---
+    # Gmail par real OTP bhejna
     email_sent = send_otp_email(user_data.email, generated_otp)
 
     if not email_sent:
