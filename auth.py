@@ -67,6 +67,24 @@ class LoginRequest(BaseModel):
 # ------------------------------------------------------------------
 # User Auth Endpoints
 # ------------------------------------------------------------------
+@router.delete("/admin/delete-user/")
+def delete_specific_user(email: str):
+    connection = get_auth_connection()
+    try:
+        cursor = connection.cursor()
+        # Sirf di gayi email wale user ko delete karega
+        cursor.execute("DELETE FROM users WHERE email = %s", (email,))
+        connection.commit()
+
+        if cursor.rowcount == 0:
+            return {"message": f"No user found with email: {email}"}
+
+        return {"message": f"User with email {email} deleted successfully! You can sign up again."}
+    except Exception as e:
+        print(f"Delete User Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        connection.close()
 @router.post("/signup/")
 def signup(user_data: SignupRequest):
     connection = get_auth_connection()
