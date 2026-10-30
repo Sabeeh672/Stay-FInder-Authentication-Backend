@@ -46,3 +46,30 @@ def setup_auth_database():
         print("[Auth DB]: Users Table Initialized Successfully!")
     except Exception as e:
         print(f"[Auth DB Setup Error]: {e}")
+def setup_hostel_tables():
+    try:
+        conn = get_auth_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS hostels (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(150) NOT NULL,
+                    address VARCHAR(255) NULL,
+                    image_url VARCHAR(500) NULL,
+                    rent_per_room INT NOT NULL DEFAULT 0
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS hostel_reviews (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    hostel_id INT NOT NULL,
+                    user_email VARCHAR(100) NOT NULL,
+                    rating TINYINT NOT NULL,
+                    comment VARCHAR(500) NULL,
+                    INDEX idx_hostel (hostel_id)
+                )
+            """)
+        conn.close()
+        print("[Hostel DB]: Tables Initialized Successfully!")
+    except Exception as e:
+        print(f"[Hostel DB Setup Error]: {e}")
