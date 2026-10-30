@@ -6,10 +6,13 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from database import setup_auth_database
 from auth import router as auth_router
+from database import setup_auth_database, setup_hostel_tables
+from hostels import router as hostels_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_auth_database()
+    setup_hostel_tables()
     yield
 
 app = FastAPI(title="Authentication API", lifespan=lifespan)
@@ -31,6 +34,7 @@ def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(status_code=400, content={"detail": "Validation Error"})
 
 app.include_router(auth_router)
+app.include_router(hostels_router)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
