@@ -17,7 +17,7 @@ def get_auth_connection():
         database=DB_NAME,
         cursorclass=pymysql.cursors.DictCursor,
         connect_timeout=10,
-        autocommit=True, # Auto commit enabled for safe database queries
+        autocommit=True,
         ssl={"ca": os.environ["DB_SSL_CA"]} if os.getenv("DB_SSL_CA") else None,
     )
 
@@ -32,9 +32,16 @@ def setup_auth_database():
                     email VARCHAR(100) UNIQUE,
                     password VARCHAR(100),
                     otp_code VARCHAR(10) NULL,
+                    otp_expires_at DATETIME NULL,
                     is_active BOOLEAN DEFAULT FALSE
                 )
             """)
+            # Purani table mein naya column add karna (agar pehle se hai to error ignore)
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN otp_expires_at DATETIME NULL")
+                print("[Auth DB]: Column otp_expires_at added.")
+            except pymysql.err.OperationalError:
+                pass  # column pehle se maujood hai
         conn.close()
         print("[Auth DB]: Users Table Initialized Successfully!")
     except Exception as e:
