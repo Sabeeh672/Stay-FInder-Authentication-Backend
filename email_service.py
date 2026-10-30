@@ -1,48 +1,38 @@
-import smtplib
-import socket
 import os
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import requests
 
-# Render environment variables ya local defaults
-SENDER_EMAIL = os.getenv("SENDER_EMAIL", "sabeehshah672@gmail.com")
-APP_PASSWORD = os.getenv("APP_PASSWORD", "mqjc vufj pnfn unyt")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+BREVO_API_KEY = os.getenv("BREVO_API_KEY")
 
-def send_otp_email(receiver_email: str, otp_code: str):
-    subject = "StayFinder - Your Email Verification Code"
-    body = f"""
-    Hi,
-    
-    Thank you for signing up with StayFinder! 
-    Your verification code is: {otp_code}
-    
-    Please enter this code in the app to activate your account.
-    
-    Regards,
-    StayFinder Team
-    """
-
-    message = MIMEMultipart()
-    message["From"] = SENDER_EMAIL
-    message["To"] = receiver_email
-    message["Subject"] = subject
-    message.attach(MIMEText(body, "plain"))
-
+def send_otp_email(receiver_email: str, otp_code: str) -> bool:
+    body = (
+        "Hi,\n\n"
+        "Thank you for signing up with StayFinder!\n"
+        f"Your verification code is: {otp_code}\n"
+        "This code expires in 10 minutes.\n\n"
+        "Regards,\nStayFinder Team"
+    )
     try:
-        # Render par IPv6 error se bachne ke liye direct IPv4 resolve karein
-        host = "smtp.gmail.com"
-        port = 587
-        
-        ip_address = socket.gethostbyname(host)
-        
-        server = smtplib.SMTP(ip_address, port)
-        server.starttls(server_hostname=host)
-        server.login(SENDER_EMAIL, APP_PASSWORD)
-        server.sendmail(SENDER_EMAIL, receiver_email, message.as_string())
-        server.quit()
-        
-        print(f" [EMAIL SUCCESS] OTP sent to {receiver_email}")
-        return True
+        r = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={
+                "api-key": BREVO_API_KEY,
+                "accept": "application/json",
+                "content-type": "application/json",
+            },
+            json={
+                "sender": {"name": "StayFinder", "email": SENDER_EMAIL},
+                "to": [{"email": receiver_email}],
+                "subject": "StayFinder - Your Email Verification Code",
+                "textContent": body,
+            },
+            timeout=15,
+        )
+        if r.status_code in (200, 201):
+            print(f"[EMAIL SUCCESS] OTP sent to {receiver_email}")
+            return True
+        print(f"[EMAIL ERROR] {r.status_code}: {r.text}")
+        return False
     except Exception as e:
-        print(f" [EMAIL ERROR] Failed to send email: {e}")
+        print(f"[EMAIL ERROR] {e}")
         return False
